@@ -6,7 +6,6 @@ import requests
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, jsonify, render_template
-from playsound import playsound
 
 app = Flask(__name__)
 
@@ -62,7 +61,7 @@ geo_cache = load_json_safe(GEO_CACHE_FILE, {})
 history = load_json_safe(HISTORY_FILE, [])
 CITY_COORDS = load_json_safe(CITIES_FILE, {})
 
-latest = {"ts": None, "cities": []}
+latest = {"ts": None, "cities": [], "type": None, "coords": []}
 state_lock = threading.Lock()
 
 def now_ts():
@@ -196,10 +195,6 @@ def push_event(event):
 
         save_json(HISTORY_FILE, history)
 
-    try:
-        playsound("siren.mp3", block=False)
-    except:
-        pass
 
 @app.route("/")
 def home():
@@ -232,6 +227,12 @@ def monitor_loop():
             push_event(event)
 
         time.sleep(CHECK_INTERVAL)
+
+def start_background_thread():
+    t = threading.Thread(target=monitor_loop, daemon=True)
+    t.start()
+
+start_background_thread()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
