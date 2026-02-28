@@ -72,7 +72,7 @@ redalert/
 ├── siren.mp3
 │
 └── templates/
-└── index.html
+    └── index.html
 
 
 ---
