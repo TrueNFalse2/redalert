@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Red Alert Pro</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body{margin:0;background:#0b1220;color:white;font-family:Arial}
+header{padding:15px;background:#111b30;font-size:22px;font-weight:bold}
+.topbar{padding:10px;display:flex;gap:10px;align-items:center;background:#0f172a;border-bottom:1px solid #22304f}
+button{padding:10px;background:#dc2626;color:white;border:none;border-radius:8px;cursor:pointer}
+.pill{background:#111b30;border:1px solid #22304f;padding:6px 12px;border-radius:999px;font-size:13px}
+.container{display:flex}
+#map{height:82vh;flex:3}
+.sidepanel{flex:1;background:#0f172a;padding:15px;overflow-y:auto;border-right:1px solid #22304f}
+.eventBox{background:#111b30;border:1px solid #22304f;border-radius:10px;padding:10px;margin-bottom:10px;cursor:pointer}
+.eventType{color:#ffcc00;font-weight:bold}
+</style>
+</head>
+
+<body>
+
+<header>🚨 Red Alert Pro</header>
+
+<div class="topbar">
+<button onclick="simulate()">🔥 SIMULATE</button>
+<div class="pill">סטטוס: <span id="status">שקט</span></div>
+<div class="pill">עדכון: <span id="lastts">—</span></div>
+<div class="pill">כמות יישובים: <span id="count">0</span></div>
+</div>
+
+<div class="container">
+<div id="map"></div>
+
+<div class="sidepanel">
+<h3>אירוע חי</h3>
+<div id="live" class="eventBox">אין אירוע כרגע</div>
+
+<h3>היסטוריה (15 דקות אחרונות)</h3>
+<div id="history"></div>
+</div>
+</div>
+
+<script>
+const map = L.map('map').setView([31.7,34.8],7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const siren = new Audio("/static/siren.mp3");
+
+let lastEventTs = null;
+
+let markers = [];
+let circles = [];
+let paths = [];
+let timers = [];
+
+const VISUAL_LAUNCH_POINTS = [
+  {lat:31.5, lon:34.5},
+  {lat:33.2, lon:35.3},
+  {lat:32.0, lon:53.0},
+  {lat:15.5, lon:48.5}
+];
+
+function clearMap(){
+    markers.forEach(m=>map.removeLayer(m));
+    circles.forEach(c=>map.removeLayer(c));
+    paths.forEach(p=>map.removeLayer(p));
+    markers=[];
+    circles=[];
+    paths=[];
+    timers.forEach(t=>clearInterval(t));
+    timers=[];
+}
+
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function generateBallisticPath(from,to,steps=80,arcHeight=0.25){
+    const pts=[];
+    for(let i=0;i<=steps;i++){
+        const t=i/steps;
+        const lat=lerp(from.lat,to.lat,t);
+        const lon=lerp(from.lon,to.lon,t);
+        const arc=Math.sin(Math.PI*t)*arcHeight;
+        pts.push([lat+arc,lon]);
+    }
+    return pts;
+}
+
+function getClosestLaunchPoint(target){
+    let best=VISUAL_LAUNCH_POINTS[0];
+    let bestDist=Infinity;
+
+    VISUAL_LAUNCH_POINTS.forEach(p=>{
+        const dx=p.lat-target.lat;
+        const dy=p.lon-target.lon;
+        const d=dx*dx+dy*dy;
+        if(d<bestDist){
+            bestDist=d;
+            best=p;
+        }
+    });
+    return best;
+}
+
+function launchMissile(from,to){
+    const pts=generateBallisticPath(from,to,90,0.25);
+    const line=L.polyline([], {color:"#1e90ff",weight:3}).addTo(map);
+    paths.push(line);
+
+    const missile=L.circleMarker(pts[0],{
+        radius:6,
+        color:"#1e90ff",
+        fillOpacity:1
+    }).addTo(map);
+
+    markers.push(missile);
+
+    let i=0;
+    const interval=setInterval(()=>{
+        if(i>=pts.length){
+    clearInterval(interval);
+
+    setTimeout(()=>{
+        map.removeLayer(line);
+    },60000);
+
+    map.removeLayer(missile);
+    return;
+}
+        missile.setLatLng(pts[i]);
+        line.addLatLng(pts[i]);
+        i++;
+    },60);
+
+    timers.push(interval);
+}
+
+function drawEvent(ev){
+
+    ev.coords.forEach(c=>{
+
+        const marker = L.marker([c.lat,c.lon]).addTo(map);
+        markers.push(marker);
+
+        const circle = L.circle([c.lat,c.lon],{
+            radius:30000,
+            color:"red",
+            fillOpacity:0.25
+        }).addTo(map);
+
+        circles.push(circle);
+
+        const target = {lat:c.lat, lon:c.lon};
+        const src = getClosestLaunchPoint(target);
+
+        launchMissile(src,target);
+
+        setTimeout(()=>{
+            map.removeLayer(circle);
+            map.removeLayer(marker);
+        },60000);
+
+    });
+
+    const bounds=L.latLngBounds(ev.coords.map(c=>[c.lat,c.lon]));
+    map.fitBounds(bounds.pad(0.3));
+}
+
+function renderHistory(items){
+    const box=document.getElementById("history");
+    box.innerHTML="";
+
+    (items||[]).slice().reverse().forEach(ev=>{
+        const div=document.createElement("div");
+        div.className="eventBox";
+
+        div.innerHTML=
+            "<b>"+ev.ts+"</b><br>"+
+            "<span class='eventType'>"+(ev.type||"אירוע")+"</span><br>"+
+            (ev.cities||[]).join(", ");
+
+        div.onclick=()=>drawEvent(ev);
+        box.appendChild(div);
+    });
+}
+
+async function refresh(){
+    const r = await fetch("/api/state");
+    const data = await r.json();
+
+    renderHistory(data.history || []);
+
+    if(data.latest?.cities?.length){
+
+        document.getElementById("status").textContent = "🚨 " + (data.latest.type || "אירוע");
+        document.getElementById("lastts").textContent = data.latest.ts;
+        document.getElementById("count").textContent = data.latest.cities.length;
+
+        document.getElementById("live").innerHTML =
+            "<b>"+data.latest.ts+"</b><br>"+
+            "<span class='eventType'>"+(data.latest.type||"אירוע")+"</span><br>"+
+            (data.latest.cities||[]).join(", ");
+
+      if(data.latest.ts !== lastEventTs){
+        lastEventTs = data.latest.ts;
+         siren.play();
+         drawEvent(data.latest);
+}
+
+    } else {
+        document.getElementById("status").textContent="שקט";
+        document.getElementById("count").textContent="0";
+        document.getElementById("live").innerHTML="אין אירוע כרגע";
+        clearMap();
+    }
+}
+
+function simulate(){
+    fetch("/simulate",{method:"POST"})
+        .then(()=>setTimeout(refresh,500));
+}
+
+setInterval(refresh,5000);
+refresh();
+</script>
+
+</body>
+</html>
