@@ -128,9 +128,3 @@ gunicorn
 - Fully GitHub-integrated CI deployment
 
 ---
-
-## 👨‍💻 Author
-
-**Lior Rimon**  
-B.A. Information Systems Management  
-Cybersecurity & Cloud Enthusiast  
