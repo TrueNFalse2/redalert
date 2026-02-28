@@ -58,10 +58,9 @@ Real-time Israeli Home Front Command alert monitoring system built with **Flask 
 - **API Source:** OREF Home Front Command
 
 ---
-
 ## 📂 Project Structure
 
-
+```
 redalert/
 │
 ├── app.py
@@ -73,9 +72,7 @@ redalert/
 │
 └── templates/
     └── index.html
-
-
----
+```
 
 ## ⚙️ How It Works
 
