@@ -45,6 +45,51 @@ button{padding:10px;background:#dc2626;color:white;border:none;border-radius:8px
 </div>
 
 <script>
+const OREF_URL = "https://www.oref.org.il/WarningMessages/alert/alerts.json";
+const PROXY_URL = "https://corsproxy.io/?";
+
+let lastSignature = "";
+
+async function fetchOrefFromBrowser() {
+    try {
+        const response = await fetch(PROXY_URL + encodeURIComponent(OREF_URL), {
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        });
+
+        if (!response.ok) {
+            console.log("OREF blocked:", response.status);
+            return;
+        }
+
+        const data = await response.json();
+        let cities = data.data || [];
+
+        if (!cities.length) return;
+
+        const signature = cities.sort().join("|");
+
+        if (signature === lastSignature) return;
+
+        lastSignature = signature;
+
+        console.log("New Alert:", cities);
+
+        await fetch("/simulate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cities })
+        });
+
+    } catch (err) {
+        console.log("Fetch error:", err);
+    }
+}
+
+// בודק כל 5 שניות
+setInterval(fetchOrefFromBrowser, 5000);
+
 const map = L.map('map').setView([31.7,34.8],7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 const siren = new Audio("/static/siren.mp3");

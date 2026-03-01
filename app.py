@@ -5,7 +5,7 @@ import math
 import requests
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
@@ -220,30 +220,15 @@ def api_state():
 
 @app.route("/simulate", methods=["POST"])
 def simulate():
-    cities = ["אשקלון", "שדרות", "תל אביב"]
-    event = build_event(cities, "סימולציה")
+    data = request.json or {}
+    cities = data.get("cities", [])
+
+    if not cities:
+        return {"status": "no data"}
+
+    event = build_event(cities, "ירי רקטות")
     push_event(event)
     return {"status": "ok"}
-
-def monitor_loop():
-    last_sig = ""
-    while True:
-        cleanup_history()
-        cities, category = fetch_alerts()
-        sig = "|".join(sorted(cities)) if cities else ""
-
-        if cities and sig != last_sig:
-            last_sig = sig
-            event = build_event(cities, category)
-            push_event(event)
-
-        time.sleep(CHECK_INTERVAL)
-
-def start_background_thread():
-    t = threading.Thread(target=monitor_loop, daemon=True)
-    t.start()
-
-start_background_thread()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
