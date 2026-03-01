@@ -101,11 +101,21 @@ def choose_visual_source(lat, lon):
 
 def fetch_alerts():
     try:
-        r = requests.get(API_URL, headers={
-            "User-Agent": USER_AGENT,
-            "Referer": "https://www.oref.org.il/",
-            "X-Requested-With": "XMLHttpRequest",
-        }, timeout=5)
+        r = requests.get(
+            API_URL,
+            headers={
+                "User-Agent": USER_AGENT,
+                "Referer": "https://www.oref.org.il/",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            timeout=5
+        )
+
+        print("====== OREF DEBUG ======")
+        print("STATUS:", r.status_code)
+        print("HEADERS:", r.headers)
+        print("BODY (first 300 chars):", r.text[:300])
+        print("========================")
 
         if r.status_code != 200:
             return [], None
@@ -126,9 +136,10 @@ def fetch_alerts():
 
         return cities, category
 
-    except:
+    except Exception as e:
+        print("FETCH ERROR:", e)
         return [], None
-
+    
 def geocode_city(city):
     if city in geo_cache:
         v = geo_cache[city]
